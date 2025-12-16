@@ -8,6 +8,11 @@
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/gpio.h>
 
+#if CONFIG_LOG
+#include <zephyr/logging/log.h>
+LOG_MODULE_REGISTER(blink, LOG_LEVEL_INF);
+#endif
+
 /* 1000 msec = 1 sec */
 #define SLEEP_TIME_MS   1000
 
@@ -41,7 +46,13 @@ static void blink(void)
 		}
 
 		led_state = !led_state;
-		// printf("LED state: %s\n", led_state ? "ON" : "OFF");
+
+		#if CONFIG_LOG
+		LOG_DBG("LED state: %s", led_state ? "ON" : "OFF");
+		#else
+		printf("LED state: %s\n", led_state ? "ON" : "OFF");
+		#endif
+
 		k_msleep(SLEEP_TIME_MS);
 	}
 }

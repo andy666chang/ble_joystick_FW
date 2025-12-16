@@ -8,6 +8,11 @@
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/services/nus.h>
 
+#if CONFIG_LOG
+#include <zephyr/logging/log.h>
+LOG_MODULE_REGISTER(ble_nus, LOG_LEVEL_INF);
+#endif
+
 #define DEVICE_NAME		CONFIG_BT_DEVICE_NAME
 #define DEVICE_NAME_LEN		(sizeof(DEVICE_NAME) - 1)
 
@@ -75,7 +80,15 @@ static int ble_nus(void)
 		k_sleep(K_SECONDS(3));
 
 		err = bt_nus_send(NULL, hello_world, strlen(hello_world));
+		#if CONFIG_LOG
+		if (err == 0)
+			LOG_DBG("Data sent successfully");
+		else
+			LOG_ERR("Data send - Result: %d", err);
+		
+		#else
 		printk("Data send - Result: %d\n", err);
+		#endif
 
 		if (err < 0 && (err != -EAGAIN) && (err != -ENOTCONN)) {
 			return err;

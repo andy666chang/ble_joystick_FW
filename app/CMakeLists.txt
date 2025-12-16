@@ -10,4 +10,7 @@ project(blinky)
 target_sources(app PRIVATE main.c)
 target_sources(app PRIVATE driver/blink.c)
 
-target_sources(app PRIVATE driver/ble_nus.c)
+# target_sources(app PRIVATE driver/ble_nus.c)
+
+target_sources(app PRIVATE driver/ble_hid.c)
+target_sources(app PRIVATE driver/hog.c)
