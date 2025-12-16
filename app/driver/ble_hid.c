@@ -24,6 +24,9 @@
 
 #include "hog.h"
 
+#include <zephyr/logging/log.h>
+LOG_MODULE_REGISTER(ble_conn, LOG_LEVEL_INF);
+
 static const struct bt_data ad[] = {
 	BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
 	BT_DATA_BYTES(BT_DATA_UUID16_ALL,
@@ -42,14 +45,14 @@ static void connected(struct bt_conn *conn, uint8_t err)
 	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
 
 	if (err) {
-		printk("Failed to connect to %s (%u)\n", addr, err);
+		LOG_ERR("Failed to connect to %s (%u)", addr, err);
 		return;
 	}
 
-	printk("Connected %s\n", addr);
+	LOG_INF("Connected %s", addr);
 
 	if (bt_conn_set_security(conn, BT_SECURITY_L2)) {
-		printk("Failed to set security\n");
+		LOG_ERR("Failed to set security");
 	}
 }
 
@@ -59,7 +62,7 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 
 	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
 
-	printk("Disconnected from %s (reason 0x%02x)\n", addr, reason);
+	LOG_INF("Disconnected from %s (reason 0x%02x)", addr, reason);
 }
 
 static void security_changed(struct bt_conn *conn, bt_security_t level,
@@ -70,9 +73,9 @@ static void security_changed(struct bt_conn *conn, bt_security_t level,
 	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
 
 	if (!err) {
-		printk("Security changed: %s level %u\n", addr, level);
+		LOG_INF("Security changed: %s level %u", addr, level);
 	} else {
-		printk("Security failed: %s level %u err %d\n", addr, level,
+		LOG_ERR("Security failed: %s level %u err %d", addr, level,
 		       err);
 	}
 }
@@ -86,13 +89,11 @@ BT_CONN_CB_DEFINE(conn_callbacks) = {
 static void bt_ready(int err)
 {
 	if (err) {
-		printk("Bluetooth init failed (err %d)\n", err);
+		LOG_ERR("Bluetooth init failed (err %d)", err);
 		return;
 	}
 
-	printk("Bluetooth initialized\n");
-
-	hog_init();
+	LOG_INF("Bluetooth initialized\n");
 
 	if (IS_ENABLED(CONFIG_SETTINGS)) {
 		settings_load();
@@ -100,11 +101,11 @@ static void bt_ready(int err)
 
 	err = bt_le_adv_start(BT_LE_ADV_CONN_ONE_TIME, ad, ARRAY_SIZE(ad), sd, ARRAY_SIZE(sd));
 	if (err) {
-		printk("Advertising failed to start (err %d)\n", err);
+		LOG_ERR("Advertising failed to start (err %d)", err);
 		return;
 	}
 
-	printk("Advertising successfully started\n");
+	LOG_INF("Advertising successfully started\n");
 }
 
 #if CONFIG_SAMPLE_BT_USE_AUTHENTICATION
@@ -139,9 +140,9 @@ void clear_all_bonds(void)
     int err = bt_unpair(BT_ID_DEFAULT, BT_ADDR_LE_ANY);
     
     if (err) {
-        printk("清除綁定失敗 (err %d)\n", err);
+        LOG_ERR("清除綁定失敗 (err %d)\n", err);
     } else {
-        printk("所有綁定資訊已清除，請重啟裝置或重新廣告\n");
+        LOG_INF("所有綁定資訊已清除，請重啟裝置或重新廣告\n");
     }
 }
 
@@ -171,7 +172,7 @@ static void ble_hid(void)
 
 	err = bt_enable(bt_ready);
 	if (err) {
-		printk("Bluetooth init failed (err %d)\n", err);
+		LOG_ERR("Bluetooth init failed (err %d)", err);
 		return;
 	}
 
@@ -180,7 +181,7 @@ static void ble_hid(void)
 	printk("Bluetooth authentication callbacks registered.\n");
 	#endif
 
-	hog_button_loop();
+	hid_mouse_init();
 }
 
 #define STACKSIZE 1024

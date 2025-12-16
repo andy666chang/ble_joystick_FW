@@ -12,9 +12,7 @@
 extern "C" {
 #endif
 
-void hog_init(void);
-
-void hog_button_loop(void);
+void hid_mouse_init(void);
 
 #ifdef __cplusplus
 }

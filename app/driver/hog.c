@@ -23,6 +23,9 @@
 #include <zephyr/bluetooth/uuid.h>
 #include <zephyr/bluetooth/gatt.h>
 
+#include <zephyr/logging/log.h>
+LOG_MODULE_REGISTER(hid_mouse, LOG_LEVEL_INF);
+
 enum {
 	HIDS_REMOTE_WAKE = BIT(0),
 	HIDS_NORMALLY_CONNECTABLE = BIT(1),
@@ -172,10 +175,6 @@ BT_GATT_SERVICE_DEFINE(hog_svc,
 			       NULL, write_ctrl_point, &ctrl_point),
 );
 
-void hog_init(void)
-{
-}
-
 struct mouse_report_t {
 	uint8_t buttons; // Bit 0:左鍵, Bit 1:右鍵, Bit 2:中鍵
 	int8_t x;       // X 軸位移 (-127 ~ 127)
@@ -201,64 +200,19 @@ int hids_send_mouse_report(uint8_t buttons, int8_t x, int8_t y) {
 		.y = y,
 	};
 
+	LOG_DBG("Sending mouse report: buttons=0x%02x, x=%d, y=%d",
+		report.buttons, report.x, report.y);
+
 	/* &hog_svc.attrs[5] 是 HIDS Report 的特徵值聲明
 	 * Zephyr 會自動尋找其後的 Value 屬性進行 Notify
 	 */
 	return bt_gatt_notify(NULL, &hog_svc.attrs[5], &report, sizeof(report));
 }
 
-#include <math.h>
-
-/**
- * @brief 每次呼叫時讓滑鼠沿著圓周移動一小步
- * 
- * @param radius 圓的半徑 (建議 5.0 ~ 20.0)
- * @param steps  完成一個完整圓所需的總步數 (建議 30 ~ 100)
- */
-static void hids_mouse_draw_step(float radius, uint16_t steps)
-{
-    // 靜態變數：保留目前的角度與上次的絕對位置
-    static float angle = 0.0f;
-    static float last_abs_x = 0.0f;
-    static float last_abs_y = 0.0f;
-    static bool initialized = false;
-
-    // 第一次執行時的初始化
-    if (!initialized) {
-        last_abs_x = radius * cosf(0.0f);
-        last_abs_y = radius * sinf(0.0f);
-        initialized = true;
-    }
-
-    // 1. 計算角度步進 (2 * PI / steps)
-    float angle_step = (2.0f * 3.14159f) / (float)steps;
-    angle += angle_step;
-
-    // 2. 計算目標點的絕對座標 (相對於圓心)
-    float target_abs_x = radius * cosf(angle);
-    float target_abs_y = radius * sinf(angle);
-
-    // 3. 計算相對位移量 (Target - Last)
-    // HID 滑鼠需要的是這次移動了多少，而不是移動到哪裡
-    int8_t move_x = (int8_t)(target_abs_x - last_abs_x);
-    int8_t move_y = (int8_t)(target_abs_y - last_abs_y);
-
-    // 4. 更新記錄點
-    last_abs_x = target_abs_x;
-    last_abs_y = target_abs_y;
-
-    // 5. 若角度超過 2PI，重置角度以防溢位
-    if (angle >= (2.0f * 3.14159f)) {
-        angle = 0.0f;
-    }
-
-    // 6. 呼叫之前封裝好的發送 API
-    hids_send_mouse_report(0, move_x, move_y);
-}
 
 #define SW0_NODE DT_ALIAS(sw0)
 
-void hog_button_loop(void)
+static void hid_mouse_service(void)
 {
 	const struct gpio_dt_spec sw0 = GPIO_DT_SPEC_GET(SW0_NODE, gpios);
 
@@ -276,9 +230,19 @@ void hog_button_loop(void)
 			// 呼叫 API 發送數據 (例如：按鍵狀態, X=0, Y=0)
 			int err = hids_send_mouse_report(btn_state, 0, 0);
 			if (err) {
-				printk("Failed to send mouse report (err %d)\n", err);
+				LOG_ERR("Failed to send mouse report (err %d)", err);
 			}
 		}
 		k_sleep(K_MSEC(100));
 	}
+}
+
+#define STACKSIZE 1024
+#define PRIORITY 7
+
+K_THREAD_DEFINE(hid_mouse_id, STACKSIZE, hid_mouse_service, NULL, NULL, NULL,
+    PRIORITY, 0, K_TICKS_FOREVER);
+
+void hid_mouse_init(void) {
+	k_thread_start(hid_mouse_id);
 }
