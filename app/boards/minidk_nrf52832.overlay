@@ -1,0 +1,34 @@
+
+
+/ {
+
+    aliases {
+        right = &btn_r;
+        left = &btn_l;
+        middle = &btn_m;
+        rst = &btn_rst;
+	};
+
+    buttons {
+		btn_r: btn_r {
+			gpios = < &gpio0 27 (GPIO_PULL_UP | GPIO_ACTIVE_LOW) >;
+            label = "Right button";
+		};
+
+        btn_l: btn_l {
+			gpios = < &gpio0 28 (GPIO_PULL_UP | GPIO_ACTIVE_LOW) >;
+            label = "Left button";
+		};
+
+        btn_m: btn_m {
+			gpios = < &gpio0 29 (GPIO_PULL_UP | GPIO_ACTIVE_LOW) >;
+            label = "Middle button";
+		};
+
+        btn_rst: btn_rst {
+			gpios = < &gpio0 30 (GPIO_PULL_UP | GPIO_ACTIVE_LOW) >;
+            label = "Reset button";
+		};
+	};
+};
+

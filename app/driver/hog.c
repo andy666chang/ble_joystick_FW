@@ -9,7 +9,6 @@
  */
 
 #include <zephyr/types.h>
-#include <zephyr/drivers/gpio.h>
 #include <stddef.h>
 #include <string.h>
 #include <errno.h>
@@ -59,7 +58,7 @@ static struct hids_report input = {
 	.type = HIDS_INPUT,
 };
 
-static uint8_t simulate_input;
+static uint8_t notify;
 static uint8_t ctrl_point;
 static uint8_t report_map[] = {
 	0x05, 0x01, /* Usage Page (Generic Desktop Ctrls) */
@@ -118,7 +117,7 @@ static ssize_t read_report(struct bt_conn *conn,
 
 static void input_ccc_changed(const struct bt_gatt_attr *attr, uint16_t value)
 {
-	simulate_input = (value == BT_GATT_CCC_NOTIFY) ? 1 : 0;
+	notify = (value == BT_GATT_CCC_NOTIFY) ? 1 : 0;
 }
 
 static ssize_t read_input_report(struct bt_conn *conn,
@@ -190,8 +189,8 @@ struct mouse_report_t {
  * @return int 0 成功, 負值為錯誤碼
  */
 int hids_send_mouse_report(uint8_t buttons, int8_t x, int8_t y) {
-	if (!simulate_input) {
-		return -EAGAIN; // 主機尚未開啟通知
+	if (!notify) {
+		return -EACCES; // 主機尚未開啟通知
 	}
 
 	struct mouse_report_t report = {
@@ -209,18 +208,38 @@ int hids_send_mouse_report(uint8_t buttons, int8_t x, int8_t y) {
 	return bt_gatt_notify(NULL, &hog_svc.attrs[5], &report, sizeof(report));
 }
 
+#include <zephyr/drivers/gpio.h>
 
 #define SW0_NODE DT_ALIAS(sw0)
 
-static void hid_mouse_service(void)
-{
-	const struct gpio_dt_spec sw0 = GPIO_DT_SPEC_GET(SW0_NODE, gpios);
+static void hid_mouse_service(void) {
+	int err = 0, ret = 0;
+
+	// Button Init
+	const struct gpio_dt_spec btns[] = {
+		GPIO_DT_SPEC_GET(DT_ALIAS(left), gpios),
+		// GPIO_DT_SPEC_GET(DT_ALIAS(sw0), gpios),
+		GPIO_DT_SPEC_GET(DT_ALIAS(right), gpios),
+		GPIO_DT_SPEC_GET(DT_ALIAS(middle), gpios),
+		// GPIO_DT_SPEC_GET(DT_ALIAS(rst), gpios),
+	};
+
+	for (size_t i = 0; i < ARRAY_SIZE(btns); i++) {
+		gpio_pin_configure_dt(&btns[i], GPIO_INPUT);
+	}
 
 	gpio_pin_configure_dt(&sw0, GPIO_INPUT);
 
-	for (;;) {
-		if (simulate_input) {
+	while (1) {
+		if (notify) {
 			uint8_t btn_state = 0;
+
+			// Read btn to btn_state
+			for (size_t i = 0; i < ARRAY_SIZE(btns); i++) {
+				if (gpio_pin_get_dt(&btns[i])) {
+					btn_state |= BIT(i);
+				}
+			}
 
 			// 讀取實體按鍵並映射到 HID 左鍵 (Bit 0)
 			if (gpio_pin_get_dt(&sw0)) {
