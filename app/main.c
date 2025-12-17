@@ -6,6 +6,7 @@
 
 #include <stdio.h>
 #include <zephyr/kernel.h>
+#include "driver/hog.h"
 
 #if CONFIG_LOG
 #include <zephyr/logging/log.h>
@@ -21,6 +22,9 @@ int main(void)
     printf("Board: %s\n", CONFIG_BOARD);
     printf("Target: %s\n", CONFIG_BOARD_TARGET);
     #endif
+
+    // 初始化藍牙並啟動 HID 服務
+    ble_init();
 
 	return 0;
 }

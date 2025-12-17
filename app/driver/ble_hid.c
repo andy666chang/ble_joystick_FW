@@ -117,7 +117,7 @@ static void bt_ready(int err)
 		return;
 	}
 
-	LOG_INF("Bluetooth initialized\n");
+	LOG_INF("Bluetooth initialized");
 
 	if (IS_ENABLED(CONFIG_SETTINGS)) {
 		settings_load();
@@ -170,14 +170,14 @@ void clear_all_bonds(void)
     }
 }
 
-static void ble_hid(void)
+int ble_init(void)
 {
 	int err;
 
 	err = bt_enable(bt_ready);
 	if (err) {
 		LOG_ERR("Bluetooth init failed (err %d)", err);
-		return;
+		return 0;
 	}
 
 	#if CONFIG_SAMPLE_BT_USE_AUTHENTICATION
@@ -186,10 +186,6 @@ static void ble_hid(void)
 	#endif
 
 	hid_mouse_init();
+
+	return 0;
 }
-
-#define STACKSIZE 1024
-#define PRIORITY 7
-
-K_THREAD_DEFINE(ble_hid_id, STACKSIZE, ble_hid, NULL, NULL, NULL,
-    PRIORITY, 0, 0);
