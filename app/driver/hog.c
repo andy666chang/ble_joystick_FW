@@ -209,8 +209,10 @@ int hids_send_mouse_report(uint8_t buttons, int8_t x, int8_t y) {
 }
 
 #include <zephyr/drivers/gpio.h>
+#include <zephyr/drivers/adc.h>
 
-#define SW0_NODE DT_ALIAS(sw0)
+#define DT_SPEC_AND_COMMA(node_id, prop, idx) \
+	ADC_DT_SPEC_GET_BY_IDX(node_id, idx),
 
 static void hid_mouse_service(void) {
 	int err = 0, ret = 0;
@@ -228,11 +230,33 @@ static void hid_mouse_service(void) {
 		gpio_pin_configure_dt(&btns[i], GPIO_INPUT);
 	}
 
-	gpio_pin_configure_dt(&sw0, GPIO_INPUT);
+	// ADC Init
+	// Data of ADC io-channels specified in devicetree.
+	static const struct adc_dt_spec adc_channels[] = {
+		DT_FOREACH_PROP_ELEM(DT_PATH(zephyr_user), io_channels,
+					DT_SPEC_AND_COMMA)
+	};
+
+	// Configure channels individually prior to sampling.
+	for (size_t i = 0U; i < ARRAY_SIZE(adc_channels); i++) {
+		if (!adc_is_ready_dt(&adc_channels[i])) {
+			LOG_ERR("ADC controller device %s not ready", adc_channels[i].dev->name);
+			return;
+		}
+
+		err = adc_channel_setup_dt(&adc_channels[i]);
+		if (err < 0) {
+			LOG_ERR("Could not setup channel #%d (%d)", i, err);
+			return;
+		}
+	}
+	
+
 
 	while (1) {
 		if (notify) {
 			uint8_t btn_state = 0;
+			int8_t axis[2] = {0};
 
 			// Read btn to btn_state
 			for (size_t i = 0; i < ARRAY_SIZE(btns); i++) {
@@ -241,13 +265,36 @@ static void hid_mouse_service(void) {
 				}
 			}
 
-			// 讀取實體按鍵並映射到 HID 左鍵 (Bit 0)
-			if (gpio_pin_get_dt(&sw0)) {
-				btn_state |= BIT(0);
+			// Read ADC values for X and Y
+			uint16_t buf;
+			struct adc_sequence sequence = {
+				.buffer = &buf,
+				/* buffer size in bytes, not number of samples */
+				.buffer_size = sizeof(buf),
+			};
+			for (size_t i = 0U; i < ARRAY_SIZE(adc_channels); i++) {
+				int32_t val_mv;
+
+				(void)adc_sequence_init_dt(&adc_channels[i], &sequence);
+
+				err = adc_read_dt(&adc_channels[i], &sequence);
+				if (err < 0) {
+					LOG_ERR("Could not read (%d)", err);
+					continue;
+				}
+
+				val_mv = (int32_t)buf;
+
+				err = adc_raw_to_millivolts_dt(&adc_channels[i],
+						       &val_mv);
+				LOG_DBG("[%d] = %"PRId32" mV", i, val_mv);
+
+				// axis[i] = (int8_t)((val_mv - 1800) / 10);
+				axis[i] = 0;
 			}
 
 			// 呼叫 API 發送數據 (例如：按鍵狀態, X=0, Y=0)
-			int err = hids_send_mouse_report(btn_state, 0, 0);
+			int err = hids_send_mouse_report(btn_state, axis[0], axis[1]);
 			if (err) {
 				LOG_ERR("Failed to send mouse report (err %d)", err);
 			}
