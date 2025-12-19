@@ -208,6 +208,7 @@ int hids_send_mouse_report(uint8_t buttons, int8_t x, int8_t y) {
 	return bt_gatt_notify(NULL, &hog_svc.attrs[5], &report, sizeof(report));
 }
 
+#include <math.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/adc.h>
 
@@ -289,8 +290,11 @@ static void hid_mouse_service(void) {
 						       &val_mv);
 				LOG_DBG("[%d] = %"PRId32" mV", i, val_mv);
 
-				// axis[i] = (int8_t)((val_mv - 1800) / 10);
-				axis[i] = 0;
+				axis[i] = (int8_t)((val_mv - 1600) / 20);
+
+				if ( fabs(axis[i]) < 5 ) {
+					axis[i] = 0;
+				}
 			}
 
 			// 呼叫 API 發送數據 (例如：按鍵狀態, X=0, Y=0)
